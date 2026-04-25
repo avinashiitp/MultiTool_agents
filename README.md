@@ -1,8 +1,10 @@
-# 🤖 Multi-Tool AI Agent
+# 🤖 Multi-Tool AI Agent with MCP
 
-A Python-based AI agent powered by Claude (Anthropic) that can autonomously decide which tools to use, chain multiple tools together, and fetch live data from external APIs — all through a simple interactive chat interface.
+A Python-based AI agent powered by Claude (Anthropic) that evolves across five levels — from a single-tool agent, to multi-tool, to live API tools, to a full **MCP (Model Context Protocol)** architecture where tools are discovered automatically.
 
-## What is an AI Agent?
+---
+
+## 🧠 What is an AI Agent?
 
 Unlike a regular chatbot that only generates text from memory, an **agent** can take actions. It follows a loop:
 
@@ -12,14 +14,85 @@ Unlike a regular chatbot that only generates text from memory, an **agent** can 
 4. The AI reads the results and decides if it needs more tools
 5. Once satisfied, it gives you the final answer
 
-This project demonstrates that loop with real, working tools.
+This project builds that loop step by step — from simple to advanced.
 
-## Available Tools
+---
 
-| Tool | API Source | Example Prompt |
-|------|-----------|----------------|
+## 📁 Project Structure
+
+```
+MultiTool_agents/
+├── .env               ← Your API key goes here (never commit this)
+├── .env.example       ← API key template
+├── .gitignore         ← Keeps secrets and junk out of Git
+├── requirements.txt   ← Python dependencies
+├── README.md          ← You are here
+│
+├── agent.py           ← Level 1: Single tool (calculator only)
+├── agent2.py          ← Level 2: 5 local tools (calculator, todo, datetime, text analyzer, converter)
+├── agent3.py          ← Level 3: 6 live API tools (weather, GitHub, dictionary, country, location, facts)
+│
+├── mcp_server.py      ← Level 4: MCP server (exposes tools via protocol)
+└── mcp_client.py      ← Level 4: MCP client (discovers & uses tools automatically)
+```
+
+---
+
+## 🚀 Evolution — Five Levels
+
+### Level 1 — `agent.py` — Single Tool Agent
+
+The simplest possible agent. One tool (calculator), one loop. Start here to understand the fundamentals.
+
+```bash
+python agent.py
+```
+
+**What it does:** Hardcoded to run two questions — calculates math expressions using a single calculator tool.
+
+**Tools:** calculator
+
+**Key concept:** The agent loop — `question → Claude decides → tool runs → result back → final answer`
+
+---
+
+### Level 2 — `agent2.py` — Multi-Tool Agent (Local)
+
+Same loop, but now Claude has 5 tools to choose from and an interactive chat interface.
+
+```bash
+python agent2.py
+```
+
+**Tools:** calculator, to-do list, date/time, text analyzer, unit converter
+
+**Key concept:** Claude reads tool descriptions and **autonomously decides** which tool to use. It can chain multiple tools in one question.
+
+**Try:**
+```
+You: What is 2 to the power of 16?
+You: Add "buy groceries" to my todo
+You: Convert 100 fahrenheit to celsius
+You: How many words are in "the quick brown fox"?
+You: What day is it today and what is 42 * 17?
+```
+
+---
+
+### Level 3 — `agent3.py` — Live API Agent
+
+Tools no longer run locally — they hit **real URLs on the internet** and return live data.
+
+```bash
+python agent3.py
+```
+
+**Tools:**
+
+| Tool | API Source | Example |
+|------|-----------|---------|
 | 🌤 Weather | [wttr.in](https://wttr.in) | *"What's the weather in Tokyo?"* |
-| 📖 Dictionary | [dictionaryapi.dev](https://dictionaryapi.dev) | *"Define the word serendipity"* |
+| 📖 Dictionary | [dictionaryapi.dev](https://dictionaryapi.dev) | *"Define serendipity"* |
 | 🌍 Country Info | [restcountries.com](https://restcountries.com) | *"Tell me about India"* |
 | 👤 GitHub User | [api.github.com](https://api.github.com) | *"Look up torvalds on GitHub"* |
 | 📍 My Location | [ip-api.com](http://ip-api.com) | *"Where am I?"* |
@@ -27,208 +100,189 @@ This project demonstrates that loop with real, working tools.
 
 All external APIs are **free and require no API keys**.
 
-## Project Structure
+**Key concept:** Your code is just the middleman — it receives Claude's request, forwards it to the right URL, and sends the response back.
+
+**Try multi-tool chaining:**
+```
+You: What's the weather in the capital of France?
+```
+Agent will: Country Info → Paris → Weather for Paris → combined answer.
+
+---
+
+### Level 4 — `mcp_server.py` + `mcp_client.py` — MCP Architecture
+
+Tools are separated into a **server**. The **client** discovers them automatically at runtime — zero hardcoded tool definitions in the client.
+
+```bash
+python mcp_client.py mcp_server.py
+```
+
+You don't run the server separately — the client launches it as a subprocess.
+
+**Key concept:** The client knows NOTHING about tools in advance. It connects to the server, asks "what tools do you have?", and gets back a list. Swap the server = different tools, zero client changes.
+
+---
+
+## 🔌 What is MCP?
+
+**Model Context Protocol (MCP)** is an open standard by Anthropic. Think of it as **USB-C for AI**.
+
+### The Shift
+
+| Level 1-3 (without MCP) | Level 4 (with MCP) |
+|--------------------------|---------------------|
+| Tools hardcoded in agent | Tools discovered at runtime |
+| Adding a tool = editing agent code | Adding a tool = editing server only |
+| One agent = one set of tools | Any client connects to any server |
+| Tight coupling | Loose coupling |
+
+### How MCP Works
 
 ```
-multi-tool-agent/
-├── .env               ← Your API key goes here (never commit this)
-├── .gitignore         ← Keeps secrets and junk out of Git
-├── agent.py           ← Simple agent with local tools (calculator, todo, etc.)
-├── agent_api.py       ← Advanced agent with live API tools (weather, GitHub, etc.)
-├── requirements.txt   ← Python dependencies
-├── venv/              ← Virtual environment (auto-generated)
-└── README.md          ← You are here
+┌─────────────────┐    stdio    ┌─────────────────┐       ┌──────────┐
+│                 │◄───────────►│                 │──────►│  APIs    │
+│   MCP Client    │             │   MCP Server    │       │  wttr.in │
+│                 │             │                 │       │  github  │
+│  • Claude API   │  discover   │  • Tool logic   │       │  etc.    │
+│  • Agent loop   │────────────►│  • Resources    │       └──────────┘
+│  • Chat UI      │  call tools │  • Prompts      │
+│                 │────────────►│                 │
+└─────────────────┘             └─────────────────┘
+
+Client knows NOTHING        Server knows EVERYTHING
+about tools in advance.     about tools.
 ```
 
-## Prerequisites
+### MCP Flow
 
-- **Python 3.9+** installed on your machine
-- **VS Code** (recommended) or any code editor
-- An **Anthropic API key** (see Configuration below)
+1. Client launches `mcp_server.py` as a subprocess
+2. Handshake → Client asks "What tools do you have?"
+3. Server responds with 6 tool schemas
+4. User asks a question
+5. Client sends question + discovered tools → Claude API
+6. Claude picks a tool → Client calls `session.call_tool()` via MCP
+7. Server executes → returns result
+8. Loop continues until Claude gives final answer
 
 ---
 
 ## ⚙️ Configuration — API Key Setup
 
-> **IMPORTANT:** This project requires an Anthropic API key to function. The agent calls Claude's API to power the AI reasoning, and this requires a valid key with billing credits.
+> **⚠️ IMPORTANT:** This project requires an **Anthropic API key** with billing credits.
 
 ### Step 1: Get Your API Key
 
 1. Go to [console.anthropic.com](https://console.anthropic.com)
 2. Sign up or log in
 3. Navigate to **Settings → API Keys**
-4. Click **Create Key** and copy it immediately (you can only see it once)
-5. Go to **Settings → Billing** and add a payment method / credits
-
-Your key will look like this: `sk-ant-api03-xxxxxxxxxxxxxxxxxxxx`
+4. Click **Create Key** and copy it immediately
+5. Go to **Settings → Billing** and add a payment method
 
 ### Step 2: Create the `.env` File
 
-Create a file named `.env` in the project root directory:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and paste your real key:
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-api03-paste-your-real-key-here
 ```
 
-**Rules for the `.env` file:**
-- No quotes around the key
-- No spaces before or after the `=` sign
-- No blank lines after the key
-- The file must be named exactly `.env` (with the dot)
+**Rules:** No quotes. No spaces around `=`. File named exactly `.env`.
 
-### Step 3: Verify Your Key Loads Correctly
-
-Run this command to confirm the key is being read:
+### Step 3: Verify
 
 ```bash
-python3 -c "from dotenv import load_dotenv; import os; load_dotenv(); key=os.environ.get('ANTHROPIC_API_KEY','NOT FOUND'); print(key[:20]+'...' if len(key)>20 else key)"
+python3 -c "from dotenv import load_dotenv; import os; load_dotenv(); k=os.environ.get('ANTHROPIC_API_KEY','NOT FOUND'); print(k[:20]+'...')"
 ```
 
-You should see the first 20 characters of your key printed.
+### 🔒 Security
 
-### 🔒 Security Warning
-
-- **NEVER** commit your `.env` file to GitHub
-- **NEVER** hardcode your API key directly in Python files
-- **NEVER** share your API key publicly
-- The included `.gitignore` file already excludes `.env` — do not remove that entry
+- **NEVER** commit `.env` to GitHub
+- **NEVER** hardcode API keys in Python files
+- The `.gitignore` already excludes `.env`
 
 ---
 
-## Installation
-
-### 1. Clone the Repository
+## 📦 Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/multi-tool-agent.git
-cd multi-tool-agent
-```
-
-### 2. Create a Virtual Environment
-
-```bash
+git clone https://github.com/avinashiitp/MultiTool_agents.git
+cd MultiTool_agents
 python3 -m venv venv
 source venv/bin/activate        # Mac/Linux
-# venv\Scripts\activate         # Windows
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your real Anthropic API key
 ```
 
-### 3. Install Dependencies
+---
+
+## ▶️ Quick Start
 
 ```bash
-pip install anthropic python-dotenv requests
-```
-
-### 4. Set Up Your API Key
-
-Create the `.env` file as described in the Configuration section above.
-
-### 5. Run the Agent
-
-**Simple agent (local tools):**
-```bash
+# Level 1 — Single tool
 python agent.py
+
+# Level 2 — 5 local tools (interactive chat)
+python agent2.py
+
+# Level 3 — 6 live API tools (interactive chat)
+python agent3.py
+
+# Level 4 — MCP (auto-discovery)
+python mcp_client.py mcp_server.py
 ```
 
-**API agent (live internet tools):**
-```bash
-python agent_api.py
-```
+Type `quit` to exit any interactive agent.
 
 ---
 
-## Usage Examples
+## 🛠 Adding New Tools
 
-Once the agent is running, try these prompts:
+### Level 2 & 3 — Manual (3 steps)
 
-**Single tool usage:**
-```
-You: What's the weather in Bangalore?
-You: Define the word "ephemeral"
-You: Tell me about Japan
-You: Look up torvalds on GitHub
+1. Add tool definition to the `tools` list
+2. Add `elif name == "your_tool":` in `run_tool()`
+3. Update the system prompt
+
+### Level 4 — MCP (1 step)
+
+Add a function in `mcp_server.py`:
+
+```python
+@mcp.tool()
+def get_joke() -> str:
+    """Get a random programming joke."""
+    r = requests.get("https://official-joke-api.appspot.com/jokes/programming/random", timeout=10)
+    joke = r.json()[0]
+    return json.dumps({"setup": joke["setup"], "punchline": joke["punchline"]})
 ```
 
-**Multi-tool chaining (the agent calls multiple tools automatically):**
-```
-You: What's the weather in the capital of France?
-```
-The agent will: call Country Info → learn capital is Paris → call Weather for Paris → give combined answer.
-
-```
-You: Where am I and what's the weather there?
-```
-The agent will: call Location → get your city → call Weather for that city → respond.
-
-**Type `quit` to exit.**
+Client discovers it automatically. **No client changes.**
 
 ---
 
-## How It Works
+## 🔧 Troubleshooting
 
-The core agent loop:
-
-```
-┌─────────────────────────────────────────────┐
-│  User asks a question                       │
-└──────────────────┬──────────────────────────┘
-                   ▼
-┌─────────────────────────────────────────────┐
-│  Send question + tool definitions to Claude │
-└──────────────────┬──────────────────────────┘
-                   ▼
-          ┌────────────────┐
-          │ Claude responds │
-          └───────┬────────┘
-                  ▼
-        ┌───────────────────┐
-        │ stop_reason =  ?  │
-        └───┬───────────┬───┘
-            ▼           ▼
-      "tool_use"    "end_turn"
-            │           │
-            ▼           ▼
-    ┌──────────────┐  ┌──────────────────┐
-    │ Run the tool │  │ Print the answer │
-    │ (call API)   │  │ Break the loop   │
-    └──────┬───────┘  └──────────────────┘
-           ▼
-    ┌──────────────────┐
-    │ Send result back │
-    │ to Claude        │
-    └──────┬───────────┘
-           │
-           └──── Loop back to top
-```
+| Error | Fix |
+|-------|-----|
+| `AuthenticationError: invalid x-api-key` | Check `.env` has your real key + billing credits |
+| `No such file or directory` | `cd` to the project folder first |
+| `ModuleNotFoundError: anthropic` | Run `pip install -r requirements.txt` |
+| `ModuleNotFoundError: mcp` | Run `pip install mcp` |
+| `ConnectionError` for API tools | Check your internet connection |
 
 ---
 
-## Troubleshooting
+## 📚 Learn More
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `AuthenticationError: invalid x-api-key` | API key is wrong or placeholder | Check your `.env` file has a real key |
-| `No such file or directory: agent.py` | Terminal is in the wrong folder | Run `cd` to the project folder first |
-| `ModuleNotFoundError: anthropic` | Package not installed | Run `pip install anthropic` |
-| `ModuleNotFoundError: dotenv` | Package not installed | Run `pip install python-dotenv` |
-| `ConnectionError` for tool APIs | No internet or API is down | Check your internet connection |
-| `DeprecationWarning` for model | Model string is outdated | Update the model string in the code |
-
----
-
-## Extending the Agent
-
-To add a new tool:
-
-1. **Define it** — Add a new entry to the `tools` list with a name, description, and input schema
-2. **Implement it** — Add an `elif name == "your_tool":` block in `run_tool()` that calls an API
-3. **Update the system prompt** — Mention the new tool so Claude knows when to use it
-
-Free APIs you could add:
-- [Open Trivia DB](https://opentdb.com/api_config.php) — Quiz questions
-- [PokeAPI](https://pokeapi.co) — Pokémon data
-- [JokeAPI](https://jokeapi.dev) — Random jokes
-- [NewsAPI](https://newsapi.org) — Headlines (requires free key)
-- [ExchangeRate-API](https://www.exchangerate-api.com) — Currency conversion
+- [MCP Documentation](https://modelcontextprotocol.io)
+- [Anthropic API Docs](https://docs.anthropic.com)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 
 ---
 
@@ -236,17 +290,16 @@ Free APIs you could add:
 
 - **Python 3.9+**
 - **Anthropic SDK** — Claude API client
-- **python-dotenv** — Environment variable management
+- **MCP SDK** — Model Context Protocol
+- **python-dotenv** — Environment variables
 - **requests** — HTTP client for API calls
 
 ---
 
 ## License
 
-MIT License — feel free to use, modify, and distribute.
+MIT License — free to use, modify, and distribute.
 
 ---
-
-## Acknowledgments
 
 Built with [Claude](https://www.anthropic.com/claude) by Anthropic.
